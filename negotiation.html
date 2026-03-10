@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 단가 협상 대시보드</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  background: #f5f6fa; color: #2d3436;
+  display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #2d3436, #636e72);
+  color: white; padding: 14px 32px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-shrink: 0;
+}
+.header h1 { font-size: 20px; font-weight: 700; }
+.header .meeting { font-size: 12px; opacity: 0.85; text-align: right; }
+.header .meeting div { margin-top: 2px; }
+
+/* Summary Cards */
+.summary {
+  display: flex; gap: 12px; padding: 12px 32px; flex-wrap: wrap; flex-shrink: 0;
+}
+.card {
+  background: white; border-radius: 8px; padding: 10px 16px;
+  flex: 1; min-width: 140px; box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.card .label { font-size: 11px; color: #636e72; margin-bottom: 2px; }
+.card .value { font-size: 20px; font-weight: 700; }
+.card .sub { font-size: 10px; color: #b2bec3; margin-top: 1px; }
+.card.danger .value { color: #d63031; }
+.card.primary .value { color: #0984e3; }
+.card.purple .value { color: #6c5ce7; }
+
+/* Tabs */
+.tabs {
+  display: flex; gap: 0; padding: 0 32px; border-bottom: 2px solid #dfe6e9;
+  background: white; flex-shrink: 0;
+}
+.tab {
+  padding: 10px 20px; cursor: pointer; font-size: 13px; font-weight: 500;
+  border: none; background: none; color: #636e72;
+  border-bottom: 3px solid transparent; margin-bottom: -2px;
+  transition: all 0.2s;
+}
+.tab:hover { color: #2d3436; background: #f8f9fa; }
+.tab.active { color: #0984e3; border-bottom-color: #0984e3; font-weight: 700; background: #ebf5fb; }
+
+/* Preset bar */
+.preset-bar {
+  display: flex; gap: 8px; padding: 8px 32px; background: white;
+  border-bottom: 1px solid #dfe6e9; align-items: center; flex-shrink: 0;
+}
+.preset-bar label { font-size: 12px; color: #636e72; margin-right: 8px; }
+.preset-btn {
+  padding: 5px 14px; border: 1px solid #dfe6e9; border-radius: 6px;
+  background: white; cursor: pointer; font-size: 12px; color: #2d3436;
+  transition: all 0.15s;
+}
+.preset-btn:hover { background: #f0f0f0; }
+.preset-btn.active { background: #0984e3; color: white; border-color: #0984e3; }
+
+/* Table area — fills remaining space, scrolls */
+.table-wrap {
+  flex: 1; overflow: auto; padding: 0 32px;
+}
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: white; font-size: 13px;
+}
+
+/* Sticky header */
+thead th {
+  position: sticky; top: 0; z-index: 10;
+  background: #2d3436; color: white; padding: 10px 12px;
+  text-align: center; font-weight: 600; font-size: 12px;
+  white-space: nowrap; border-bottom: 2px solid #b2bec3;
+}
+thead th.proposed { background: #6c5ce7; }
+thead th.counter { background: #00b894; }
+thead th.final { background: #e17055; }
+thead th.neg { background: #d63031; }
+
+td {
+  padding: 8px 12px; text-align: center; border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+}
+tbody tr:hover td { background: #f8f9fa; }
+tbody tr:nth-child(even) td { background: #fafbfc; }
+tbody tr:nth-child(even):hover td { background: #f0f2f5; }
+
+td.driver { text-align: left; max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
+td.route { font-weight: 600; font-family: 'Consolas', monospace; }
+td.num { font-family: 'Consolas', monospace; }
+td.neg { color: #d63031; }
+td.proposed { color: #6c5ce7; font-weight: 700; }
+
+/* Editable inputs */
+.price-input {
+  width: 70px; text-align: center; border: 1px solid #dfe6e9;
+  border-radius: 4px; padding: 4px 2px; font-size: 13px;
+  font-family: 'Consolas', monospace; background: #f8fff8;
+}
+.price-input:focus { outline: none; border-color: #00b894; box-shadow: 0 0 0 2px rgba(0,184,148,0.2); }
+.price-input.final { background: #fff5f0; }
+.price-input.final:focus { border-color: #e17055; box-shadow: 0 0 0 2px rgba(225,112,85,0.2); }
+
+.stepper {
+  display: inline-flex; flex-direction: column; margin-left: 2px; vertical-align: middle;
+}
+.stepper button {
+  width: 18px; height: 14px; border: 1px solid #dfe6e9; background: white;
+  cursor: pointer; font-size: 8px; line-height: 1; display: flex;
+  align-items: center; justify-content: center; padding: 0;
+}
+.stepper button:hover { background: #e8f8f5; }
+.stepper button:first-child { border-radius: 3px 3px 0 0; }
+.stepper button:last-child { border-radius: 0 0 3px 3px; border-top: none; }
+
+/* Camp separator */
+tr.camp-header td {
+  background: #f0f2f5; font-weight: 700; text-align: left;
+  padding: 8px 12px; color: #2d3436; font-size: 13px;
+  border-bottom: 2px solid #dfe6e9;
+}
+
+/* Subtotal rows (camp-level) */
+tr.subtotal-row td {
+  background: #edf2f7; font-weight: 600; font-size: 12px;
+}
+tr.subtotal-row.sum-row td { border-bottom: none; padding-top: 6px; padding-bottom: 2px; }
+tr.subtotal-row.avg-row td { padding-top: 2px; padding-bottom: 8px; border-bottom: 2px solid #a0aec0; }
+tr.subtotal-row .subtotal-label { text-align: left; font-size: 12px; color: #4a5568; padding-left: 16px; }
+tr.subtotal-row:hover td { background: #edf2f7; }
+
+/* Grand total rows */
+tr.grand-total-row td {
+  background: #2d3436; color: white; font-weight: 700; font-size: 13px;
+  font-family: 'Consolas', monospace;
+}
+tr.grand-total-row.sum-row td { border-bottom: none; padding-top: 10px; padding-bottom: 2px; }
+tr.grand-total-row.avg-row td { padding-top: 2px; padding-bottom: 10px; }
+tr.grand-total-row .subtotal-label { text-align: left; color: #dfe6e9; font-family: 'Malgun Gothic', sans-serif; padding-left: 16px; }
+tr.grand-total-row .num { color: white; }
+tr.grand-total-row .proposed { color: #a29bfe; }
+tr.grand-total-row .neg { color: #fab1a0; }
+tr.grand-total-row:hover td { background: #2d3436; }
+
+/* Footer */
+.footer {
+  flex-shrink: 0; padding: 6px 32px; text-align: center; font-size: 10px; color: #b2bec3;
+  background: #f5f6fa;
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div class="header">
+  <h1>2026 단가 협상 대시보드</h1>
+  <div class="meeting">
+    <div>CLS 단가 협상 미팅</div>
+    <div>3월 11일(화) 16:20 | 잠실역 타워730</div>
+  </div>
+</div>
+
+<div id="summary" class="summary"></div>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="preset-bar">
+  <label>협상단가 일괄:</label>
+  <button class="preset-btn" onclick="applyPreset(0)">제안 그대로</button>
+  <button class="preset-btn" onclick="applyPreset(20)">+20원</button>
+  <button class="preset-btn active" onclick="applyPreset(40)">+40원</button>
+  <button class="preset-btn" onclick="applyPreset(60)">+60원</button>
+  <button class="preset-btn" onclick="applyPreset(80)">+80원</button>
+  <button class="preset-btn" onclick="applyPreset(100)">+100원</button>
+  <span style="margin-left:auto;font-size:12px;color:#636e72" id="presetInfo"></span>
+  <button class="preset-btn" onclick="downloadExcel()" style="background:#0984e3;color:white;border-color:#0984e3;font-weight:600;">엑셀 다운로드</button>
+</div>
+
+<div class="table-wrap" id="tableWrap"></div>
+
+<div class="footer">2026 단가 협상 대시보드 | (주)넥스트 유니온 & 바로물류</div>
+
+<script>
+const DATA = [{"agency": "(주)넥스트 유니온", "camp": "부산3야간", "camp_raw": "부산3", "type": "W1", "route": "410D", "driver": "황제우", "p2024": 1250, "adj_amount": -40, "adj_pct": -3.2, "p2025": 1210, "p2026_proposed": 1120, "prop_diff": -90, "prop_pct": -7.4, "p2026_counter": 1160, "p2026_final": 1160}, {"agency": "(주)넥스트 유니온", "camp": "부산3야간", "camp_raw": "부산3", "type": "W1", "route": "520A", "driver": "권환우", "p2024": 1150, "adj_amount": -250, "adj_pct": -21.7, "p2025": 900, "p2026_proposed": 810, "prop_diff": -90, "prop_pct": -10.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산3야간", "camp_raw": "부산3", "type": "W1", "route": "520B", "driver": "권환우", "p2024": 1150, "adj_amount": -50, "adj_pct": -4.3, "p2025": 1100, "p2026_proposed": 1000, "prop_diff": -100, "prop_pct": -9.1, "p2026_counter": 1040, "p2026_final": 1040}, {"agency": "(주)넥스트 유니온", "camp": "부산3야간", "camp_raw": "부산3", "type": "W1", "route": "520C", "driver": "권환우", "p2024": 1150, "adj_amount": -250, "adj_pct": -21.7, "p2025": 900, "p2026_proposed": 810, "prop_diff": -90, "prop_pct": -10.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산3야간", "camp_raw": "부산3", "type": "W1", "route": "520D", "driver": "권환우", "p2024": 1150, "adj_amount": -250, "adj_pct": -21.7, "p2025": 900, "p2026_proposed": 810, "prop_diff": -90, "prop_pct": -10.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산2야간", "camp_raw": "부산2", "type": "W1", "route": "708A", "driver": "김정철", "p2024": 1000, "adj_amount": -110, "adj_pct": -11.0, "p2025": 890, "p2026_proposed": 810, "prop_diff": -80, "prop_pct": -9.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산2야간", "camp_raw": "부산2", "type": "W1", "route": "708B", "driver": "김정철", "p2024": 1000, "adj_amount": -100, "adj_pct": -10.0, "p2025": 900, "p2026_proposed": 810, "prop_diff": -90, "prop_pct": -10.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산2야간", "camp_raw": "부산2", "type": "W1", "route": "708C", "driver": "전윤성", "p2024": 1000, "adj_amount": -100, "adj_pct": -10.0, "p2025": 900, "p2026_proposed": 810, "prop_diff": -90, "prop_pct": -10.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산2야간", "camp_raw": "부산2", "type": "W1", "route": "708D", "driver": "전윤성", "p2024": 1000, "adj_amount": -80, "adj_pct": -8.0, "p2025": 920, "p2026_proposed": 810, "prop_diff": -110, "prop_pct": -12.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산2야간", "camp_raw": "부산2", "type": "W1", "route": "709A", "driver": "심재호", "p2024": 1000, "adj_amount": -100, "adj_pct": -10.0, "p2025": 900, "p2026_proposed": 810, "prop_diff": -90, "prop_pct": -10.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산2야간", "camp_raw": "부산2", "type": "W1", "route": "709B", "driver": "임홍섭", "p2024": 1000, "adj_amount": -100, "adj_pct": -10.0, "p2025": 900, "p2026_proposed": 810, "prop_diff": -90, "prop_pct": -10.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산2야간", "camp_raw": "부산2", "type": "W1", "route": "709C", "driver": "심재호", "p2024": 1000, "adj_amount": -100, "adj_pct": -10.0, "p2025": 900, "p2026_proposed": 810, "prop_diff": -90, "prop_pct": -10.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "부산2야간", "camp_raw": "부산2", "type": "W1", "route": "709D", "driver": "임홍섭", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1050, "prop_diff": -50, "prop_pct": -4.5, "p2026_counter": 1090, "p2026_final": 1090}, {"agency": "(주)넥스트 유니온", "camp": "부산3주간", "camp_raw": "부산3", "type": "W2", "route": "516A", "driver": "임우태", "p2024": 800, "adj_amount": -100, "adj_pct": -12.5, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산3주간", "camp_raw": "부산3", "type": "W2", "route": "516B", "driver": "임우태", "p2024": 800, "adj_amount": -100, "adj_pct": -12.5, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산3주간", "camp_raw": "부산3", "type": "W2", "route": "516C", "driver": "김대일", "p2024": 800, "adj_amount": -100, "adj_pct": -12.5, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산3주간", "camp_raw": "부산3", "type": "W2", "route": "516D", "driver": "김대일", "p2024": 950, "adj_amount": -10, "adj_pct": -1.1, "p2025": 940, "p2026_proposed": 890, "prop_diff": -50, "prop_pct": -5.3, "p2026_counter": 930, "p2026_final": 930}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "701A", "driver": "박민용", "p2024": 1000, "adj_amount": -10, "adj_pct": -1.0, "p2025": 990, "p2026_proposed": 940, "prop_diff": -50, "prop_pct": -5.1, "p2026_counter": 980, "p2026_final": 980}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "701B", "driver": "김건희", "p2024": 1000, "adj_amount": -10, "adj_pct": -1.0, "p2025": 990, "p2026_proposed": 940, "prop_diff": -50, "prop_pct": -5.1, "p2026_counter": 980, "p2026_final": 980}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "701C", "driver": "박민용", "p2024": 1000, "adj_amount": -10, "adj_pct": -1.0, "p2025": 990, "p2026_proposed": 940, "prop_diff": -50, "prop_pct": -5.1, "p2026_counter": 980, "p2026_final": 980}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "701D", "driver": "김건희", "p2024": 1000, "adj_amount": -10, "adj_pct": -1.0, "p2025": 990, "p2026_proposed": 940, "prop_diff": -50, "prop_pct": -5.1, "p2026_counter": 980, "p2026_final": 980}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "702A", "driver": "김명건", "p2024": 1040, "adj_amount": -10, "adj_pct": -1.0, "p2025": 1030, "p2026_proposed": 980, "prop_diff": -50, "prop_pct": -4.9, "p2026_counter": 1020, "p2026_final": 1020}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "702B", "driver": "이정혁", "p2024": 1040, "adj_amount": -10, "adj_pct": -1.0, "p2025": 1030, "p2026_proposed": 980, "prop_diff": -50, "prop_pct": -4.9, "p2026_counter": 1020, "p2026_final": 1020}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "702C", "driver": "이정혁", "p2024": 1040, "adj_amount": -10, "adj_pct": -1.0, "p2025": 1030, "p2026_proposed": 990, "prop_diff": -40, "prop_pct": -3.9, "p2026_counter": 1030, "p2026_final": 1030}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "702D", "driver": "김명건", "p2024": 1040, "adj_amount": -10, "adj_pct": -1.0, "p2025": 1030, "p2026_proposed": 990, "prop_diff": -40, "prop_pct": -3.9, "p2026_counter": 1030, "p2026_final": 1030}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "704A", "driver": "최승식", "p2024": 1050, "adj_amount": -10, "adj_pct": -1.0, "p2025": 1040, "p2026_proposed": 1000, "prop_diff": -40, "prop_pct": -3.8, "p2026_counter": 1040, "p2026_final": 1040}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "704B", "driver": "정해교", "p2024": 1050, "adj_amount": -10, "adj_pct": -1.0, "p2025": 1040, "p2026_proposed": 990, "prop_diff": -50, "prop_pct": -4.8, "p2026_counter": 1030, "p2026_final": 1030}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "704C", "driver": "이나후", "p2024": 1050, "adj_amount": -10, "adj_pct": -1.0, "p2025": 1040, "p2026_proposed": 990, "prop_diff": -50, "prop_pct": -4.8, "p2026_counter": 1030, "p2026_final": 1030}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "704D", "driver": "이나후", "p2024": 1050, "adj_amount": -10, "adj_pct": -1.0, "p2025": 1040, "p2026_proposed": 1000, "prop_diff": -40, "prop_pct": -3.8, "p2026_counter": 1040, "p2026_final": 1040}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "705A", "driver": "정경택", "p2024": 750, "adj_amount": -30, "adj_pct": -4.0, "p2025": 720, "p2026_proposed": 680, "prop_diff": -40, "prop_pct": -5.6, "p2026_counter": 720, "p2026_final": 720}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "705B", "driver": "한주연", "p2024": 750, "adj_amount": -70, "adj_pct": -9.3, "p2025": 680, "p2026_proposed": 640, "prop_diff": -40, "prop_pct": -5.9, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "705C", "driver": "한주연", "p2024": 750, "adj_amount": -70, "adj_pct": -9.3, "p2025": 680, "p2026_proposed": 640, "prop_diff": -40, "prop_pct": -5.9, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "705D", "driver": "정경택", "p2024": 850, "adj_amount": -10, "adj_pct": -1.2, "p2025": 840, "p2026_proposed": 800, "prop_diff": -40, "prop_pct": -4.8, "p2026_counter": 840, "p2026_final": 840}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "706A", "driver": "서민수", "p2024": 750, "adj_amount": -70, "adj_pct": -9.3, "p2025": 680, "p2026_proposed": 640, "prop_diff": -40, "prop_pct": -5.9, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "706B", "driver": "서민수", "p2024": 750, "adj_amount": -70, "adj_pct": -9.3, "p2025": 680, "p2026_proposed": 640, "prop_diff": -40, "prop_pct": -5.9, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "706C", "driver": "정해교", "p2024": 750, "adj_amount": -70, "adj_pct": -9.3, "p2025": 680, "p2026_proposed": 640, "prop_diff": -40, "prop_pct": -5.9, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "706D", "driver": "정해교", "p2024": 750, "adj_amount": -70, "adj_pct": -9.3, "p2025": 680, "p2026_proposed": 640, "prop_diff": -40, "prop_pct": -5.9, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "707A", "driver": "천장근", "p2024": 750, "adj_amount": -30, "adj_pct": -4.0, "p2025": 720, "p2026_proposed": 680, "prop_diff": -40, "prop_pct": -5.6, "p2026_counter": 720, "p2026_final": 720}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "707B", "driver": "엄대진", "p2024": 750, "adj_amount": -30, "adj_pct": -4.0, "p2025": 720, "p2026_proposed": 680, "prop_diff": -40, "prop_pct": -5.6, "p2026_counter": 720, "p2026_final": 720}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "707C", "driver": "천장근", "p2024": 750, "adj_amount": -50, "adj_pct": -6.7, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "707D", "driver": "박정후", "p2024": 750, "adj_amount": -50, "adj_pct": -6.7, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "708A", "driver": "김강영", "p2024": 800, "adj_amount": -100, "adj_pct": -12.5, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "708B", "driver": "박성용", "p2024": 800, "adj_amount": -100, "adj_pct": -12.5, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "708C", "driver": "최한정", "p2024": 800, "adj_amount": -110, "adj_pct": -13.8, "p2025": 690, "p2026_proposed": 640, "prop_diff": -50, "prop_pct": -7.2, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "708D", "driver": "이광주", "p2024": 800, "adj_amount": -90, "adj_pct": -11.2, "p2025": 710, "p2026_proposed": 640, "prop_diff": -70, "prop_pct": -9.9, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "709A", "driver": "권오현", "p2024": 800, "adj_amount": -120, "adj_pct": -15.0, "p2025": 680, "p2026_proposed": 640, "prop_diff": -40, "prop_pct": -5.9, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "709B", "driver": "권오현", "p2024": 800, "adj_amount": -110, "adj_pct": -13.8, "p2025": 690, "p2026_proposed": 640, "prop_diff": -50, "prop_pct": -7.2, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "709C", "driver": "이정빈", "p2024": 800, "adj_amount": -120, "adj_pct": -15.0, "p2025": 680, "p2026_proposed": 640, "prop_diff": -40, "prop_pct": -5.9, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "709D", "driver": "이정빈", "p2024": 900, "adj_amount": -10, "adj_pct": -1.1, "p2025": 890, "p2026_proposed": 850, "prop_diff": -40, "prop_pct": -4.5, "p2026_counter": 890, "p2026_final": 890}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "712A", "driver": "최한정", "p2024": 900, "adj_amount": -200, "adj_pct": -22.2, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "712B", "driver": "최지아", "p2024": 900, "adj_amount": -200, "adj_pct": -22.2, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "712C", "driver": "최원오", "p2024": 1000, "adj_amount": -10, "adj_pct": -1.0, "p2025": 990, "p2026_proposed": 940, "prop_diff": -50, "prop_pct": -5.1, "p2026_counter": 980, "p2026_final": 980}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "712D", "driver": "최원오", "p2024": 1000, "adj_amount": -10, "adj_pct": -1.0, "p2025": 990, "p2026_proposed": 950, "prop_diff": -40, "prop_pct": -4.0, "p2026_counter": 990, "p2026_final": 990}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "713A", "driver": "최지아", "p2024": 950, "adj_amount": -10, "adj_pct": -1.1, "p2025": 940, "p2026_proposed": 890, "prop_diff": -50, "prop_pct": -5.3, "p2026_counter": 930, "p2026_final": 930}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "713B", "driver": "손용위", "p2024": 950, "adj_amount": -10, "adj_pct": -1.1, "p2025": 940, "p2026_proposed": 890, "prop_diff": -50, "prop_pct": -5.3, "p2026_counter": 930, "p2026_final": 930}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "713C", "driver": "손용위", "p2024": 950, "adj_amount": -10, "adj_pct": -1.1, "p2025": 940, "p2026_proposed": 890, "prop_diff": -50, "prop_pct": -5.3, "p2026_counter": 930, "p2026_final": 930}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "713D", "driver": "손용위", "p2024": 950, "adj_amount": -10, "adj_pct": -1.1, "p2025": 940, "p2026_proposed": 910, "prop_diff": -30, "prop_pct": -3.2, "p2026_counter": 950, "p2026_final": 950}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "714A", "driver": "서태교", "p2024": 950, "adj_amount": -10, "adj_pct": -1.1, "p2025": 940, "p2026_proposed": 890, "prop_diff": -50, "prop_pct": -5.3, "p2026_counter": 930, "p2026_final": 930}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "714B", "driver": "나윤태", "p2024": 950, "adj_amount": -10, "adj_pct": -1.1, "p2025": 940, "p2026_proposed": 890, "prop_diff": -50, "prop_pct": -5.3, "p2026_counter": 930, "p2026_final": 930}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "714C", "driver": "나윤태", "p2024": 950, "adj_amount": -10, "adj_pct": -1.1, "p2025": 940, "p2026_proposed": 910, "prop_diff": -30, "prop_pct": -3.2, "p2026_counter": 950, "p2026_final": 950}, {"agency": "(주)넥스트 유니온", "camp": "부산2주간", "camp_raw": "부산2", "type": "W2", "route": "714D", "driver": "서태교", "p2024": 950, "adj_amount": -10, "adj_pct": -1.1, "p2025": 940, "p2026_proposed": 910, "prop_diff": -30, "prop_pct": -3.2, "p2026_counter": 950, "p2026_final": 950}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "607A", "driver": "", "p2024": 950, "adj_amount": -160, "adj_pct": -16.8, "p2025": 790, "p2026_proposed": 720, "prop_diff": -70, "prop_pct": -8.9, "p2026_counter": 760, "p2026_final": 760}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "607B", "driver": "", "p2024": 950, "adj_amount": -130, "adj_pct": -13.7, "p2025": 820, "p2026_proposed": 740, "prop_diff": -80, "prop_pct": -9.8, "p2026_counter": 780, "p2026_final": 780}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "607C", "driver": "", "p2024": 950, "adj_amount": -140, "adj_pct": -14.7, "p2025": 810, "p2026_proposed": 740, "prop_diff": -70, "prop_pct": -8.6, "p2026_counter": 780, "p2026_final": 780}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "607D", "driver": "", "p2024": 950, "adj_amount": -70, "adj_pct": -7.4, "p2025": 880, "p2026_proposed": 810, "prop_diff": -70, "prop_pct": -8.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "608A", "driver": "", "p2024": 950, "adj_amount": -90, "adj_pct": -9.5, "p2025": 860, "p2026_proposed": 780, "prop_diff": -80, "prop_pct": -9.3, "p2026_counter": 820, "p2026_final": 820}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "608B", "driver": "", "p2024": 950, "adj_amount": -90, "adj_pct": -9.5, "p2025": 860, "p2026_proposed": 790, "prop_diff": -70, "prop_pct": -8.1, "p2026_counter": 830, "p2026_final": 830}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "608C", "driver": "", "p2024": 950, "adj_amount": -130, "adj_pct": -13.7, "p2025": 820, "p2026_proposed": 760, "prop_diff": -60, "prop_pct": -7.3, "p2026_counter": 800, "p2026_final": 800}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "608D", "driver": "", "p2024": 950, "adj_amount": -120, "adj_pct": -12.6, "p2025": 830, "p2026_proposed": 770, "prop_diff": -60, "prop_pct": -7.2, "p2026_counter": 810, "p2026_final": 810}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "609A", "driver": "", "p2024": 950, "adj_amount": -70, "adj_pct": -7.4, "p2025": 880, "p2026_proposed": 670, "prop_diff": -210, "prop_pct": -23.9, "p2026_counter": 710, "p2026_final": 710}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "609B", "driver": "", "p2024": 950, "adj_amount": -70, "adj_pct": -7.4, "p2025": 880, "p2026_proposed": 830, "prop_diff": -50, "prop_pct": -5.7, "p2026_counter": 870, "p2026_final": 870}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "609C", "driver": "", "p2024": 950, "adj_amount": -70, "adj_pct": -7.4, "p2025": 880, "p2026_proposed": 800, "prop_diff": -80, "prop_pct": -9.1, "p2026_counter": 840, "p2026_final": 840}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "609D", "driver": "", "p2024": 950, "adj_amount": -70, "adj_pct": -7.4, "p2025": 880, "p2026_proposed": 810, "prop_diff": -70, "prop_pct": -8.0, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "610A", "driver": "", "p2024": 880, "adj_amount": -100, "adj_pct": -11.4, "p2025": 780, "p2026_proposed": 720, "prop_diff": -60, "prop_pct": -7.7, "p2026_counter": 760, "p2026_final": 760}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "610B", "driver": "", "p2024": 880, "adj_amount": -110, "adj_pct": -12.5, "p2025": 770, "p2026_proposed": 670, "prop_diff": -100, "prop_pct": -13.0, "p2026_counter": 710, "p2026_final": 710}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "610C", "driver": "", "p2024": 880, "adj_amount": -110, "adj_pct": -12.5, "p2025": 770, "p2026_proposed": 700, "prop_diff": -70, "prop_pct": -9.1, "p2026_counter": 740, "p2026_final": 740}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "610D", "driver": "", "p2024": 880, "adj_amount": -110, "adj_pct": -12.5, "p2025": 770, "p2026_proposed": 700, "prop_diff": -70, "prop_pct": -9.1, "p2026_counter": 740, "p2026_final": 740}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "611A", "driver": "", "p2024": 880, "adj_amount": -100, "adj_pct": -11.4, "p2025": 780, "p2026_proposed": 720, "prop_diff": -60, "prop_pct": -7.7, "p2026_counter": 760, "p2026_final": 760}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "611B", "driver": "", "p2024": 880, "adj_amount": -70, "adj_pct": -8.0, "p2025": 810, "p2026_proposed": 670, "prop_diff": -140, "prop_pct": -17.3, "p2026_counter": 710, "p2026_final": 710}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "611C", "driver": "", "p2024": 880, "adj_amount": -100, "adj_pct": -11.4, "p2025": 780, "p2026_proposed": 720, "prop_diff": -60, "prop_pct": -7.7, "p2026_counter": 760, "p2026_final": 760}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "611D", "driver": "", "p2024": 902, "adj_amount": -122, "adj_pct": -13.5, "p2025": 780, "p2026_proposed": 720, "prop_diff": -60, "prop_pct": -7.7, "p2026_counter": 760, "p2026_final": 760}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "612A", "driver": "", "p2024": 880, "adj_amount": -50, "adj_pct": -5.7, "p2025": 830, "p2026_proposed": 750, "prop_diff": -80, "prop_pct": -9.6, "p2026_counter": 790, "p2026_final": 790}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "612B", "driver": "", "p2024": 880, "adj_amount": -90, "adj_pct": -10.2, "p2025": 790, "p2026_proposed": 730, "prop_diff": -60, "prop_pct": -7.6, "p2026_counter": 770, "p2026_final": 770}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "612C", "driver": "", "p2024": 902, "adj_amount": -112, "adj_pct": -12.4, "p2025": 790, "p2026_proposed": 730, "prop_diff": -60, "prop_pct": -7.6, "p2026_counter": 770, "p2026_final": 770}, {"agency": "(주)넥스트 유니온", "camp": "거제", "camp_raw": "M_거제1", "type": "W2", "route": "612D", "driver": "", "p2024": 902, "adj_amount": -42, "adj_pct": -4.7, "p2025": 860, "p2026_proposed": 810, "prop_diff": -50, "prop_pct": -5.8, "p2026_counter": 850, "p2026_final": 850}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "801A", "driver": "", "p2024": 1012, "adj_amount": -232, "adj_pct": -22.9, "p2025": 780, "p2026_proposed": 740, "prop_diff": -40, "prop_pct": -5.1, "p2026_counter": 780, "p2026_final": 780}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "801B", "driver": "", "p2024": 913, "adj_amount": -133, "adj_pct": -14.6, "p2025": 780, "p2026_proposed": 720, "prop_diff": -60, "prop_pct": -7.7, "p2026_counter": 760, "p2026_final": 760}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "801C", "driver": "", "p2024": 913, "adj_amount": -133, "adj_pct": -14.6, "p2025": 780, "p2026_proposed": 720, "prop_diff": -60, "prop_pct": -7.7, "p2026_counter": 760, "p2026_final": 760}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "802A", "driver": "", "p2024": 902, "adj_amount": -122, "adj_pct": -13.5, "p2025": 780, "p2026_proposed": 720, "prop_diff": -60, "prop_pct": -7.7, "p2026_counter": 760, "p2026_final": 760}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "802B", "driver": "", "p2024": 858, "adj_amount": -78, "adj_pct": -9.1, "p2025": 780, "p2026_proposed": 710, "prop_diff": -70, "prop_pct": -9.0, "p2026_counter": 750, "p2026_final": 750}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "802C", "driver": "", "p2024": 858, "adj_amount": -78, "adj_pct": -9.1, "p2025": 780, "p2026_proposed": 720, "prop_diff": -60, "prop_pct": -7.7, "p2026_counter": 760, "p2026_final": 760}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "803A", "driver": "", "p2024": 858, "adj_amount": -78, "adj_pct": -9.1, "p2025": 780, "p2026_proposed": 670, "prop_diff": -110, "prop_pct": -14.1, "p2026_counter": 710, "p2026_final": 710}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "803B", "driver": "", "p2024": 858, "adj_amount": -78, "adj_pct": -9.1, "p2025": 780, "p2026_proposed": 710, "prop_diff": -70, "prop_pct": -9.0, "p2026_counter": 750, "p2026_final": 750}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "804A", "driver": "", "p2024": 1023, "adj_amount": 97, "adj_pct": 9.5, "p2025": 1120, "p2026_proposed": 1090, "prop_diff": -30, "prop_pct": -2.7, "p2026_counter": 1130, "p2026_final": 1130}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "804B", "driver": "", "p2024": 1023, "adj_amount": -103, "adj_pct": -10.1, "p2025": 920, "p2026_proposed": 850, "prop_diff": -70, "prop_pct": -7.6, "p2026_counter": 890, "p2026_final": 890}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "804C", "driver": "", "p2024": 1023, "adj_amount": -123, "adj_pct": -12.0, "p2025": 900, "p2026_proposed": 850, "prop_diff": -50, "prop_pct": -5.6, "p2026_counter": 890, "p2026_final": 890}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "805A", "driver": "", "p2024": 1056, "adj_amount": -256, "adj_pct": -24.2, "p2025": 800, "p2026_proposed": 740, "prop_diff": -60, "prop_pct": -7.5, "p2026_counter": 780, "p2026_final": 780}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "805B", "driver": "", "p2024": 1023, "adj_amount": -43, "adj_pct": -4.2, "p2025": 980, "p2026_proposed": 920, "prop_diff": -60, "prop_pct": -6.1, "p2026_counter": 960, "p2026_final": 960}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "805C", "driver": "", "p2024": 1023, "adj_amount": -33, "adj_pct": -3.2, "p2025": 990, "p2026_proposed": 930, "prop_diff": -60, "prop_pct": -6.1, "p2026_counter": 970, "p2026_final": 970}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "806A", "driver": "", "p2024": 1056, "adj_amount": -76, "adj_pct": -7.2, "p2025": 980, "p2026_proposed": 940, "prop_diff": -40, "prop_pct": -4.1, "p2026_counter": 980, "p2026_final": 980}, {"agency": "(주)넥스트 유니온", "camp": "사천", "camp_raw": "M_사천1", "type": "W2", "route": "806B", "driver": "", "p2024": 1023, "adj_amount": -33, "adj_pct": -3.2, "p2025": 990, "p2026_proposed": 950, "prop_diff": -40, "prop_pct": -4.0, "p2026_counter": 990, "p2026_final": 990}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "031A", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1040, "prop_diff": -110, "prop_pct": -9.6, "p2026_counter": 1080, "p2026_final": 1080}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "031B", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1070, "prop_diff": -80, "prop_pct": -7.0, "p2026_counter": 1110, "p2026_final": 1110}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "031C", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1050, "prop_diff": -100, "prop_pct": -8.7, "p2026_counter": 1090, "p2026_final": 1090}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "031D", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1050, "prop_diff": -100, "prop_pct": -8.7, "p2026_counter": 1090, "p2026_final": 1090}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "032A", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1130, "prop_diff": -20, "prop_pct": -1.7, "p2026_counter": 1170, "p2026_final": 1170}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "032B", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1100, "prop_diff": -50, "prop_pct": -4.3, "p2026_counter": 1140, "p2026_final": 1140}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "032C", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1080, "prop_diff": -70, "prop_pct": -6.1, "p2026_counter": 1120, "p2026_final": 1120}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "032D", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1070, "prop_diff": -80, "prop_pct": -7.0, "p2026_counter": 1110, "p2026_final": 1110}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "033A", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1130, "prop_diff": -20, "prop_pct": -1.7, "p2026_counter": 1170, "p2026_final": 1170}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "033B", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1080, "prop_diff": -70, "prop_pct": -6.1, "p2026_counter": 1120, "p2026_final": 1120}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "033C", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1060, "prop_diff": -90, "prop_pct": -7.8, "p2026_counter": 1100, "p2026_final": 1100}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "033D", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1100, "prop_diff": -50, "prop_pct": -4.3, "p2026_counter": 1140, "p2026_final": 1140}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "034A", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1100, "prop_diff": -50, "prop_pct": -4.3, "p2026_counter": 1140, "p2026_final": 1140}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "034B", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1080, "prop_diff": -70, "prop_pct": -6.1, "p2026_counter": 1120, "p2026_final": 1120}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "034C", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 960, "prop_diff": -190, "prop_pct": -16.5, "p2026_counter": 1000, "p2026_final": 1000}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "034D", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1080, "prop_diff": -70, "prop_pct": -6.1, "p2026_counter": 1120, "p2026_final": 1120}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "035A", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1070, "prop_diff": -80, "prop_pct": -7.0, "p2026_counter": 1110, "p2026_final": 1110}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "035B", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1070, "prop_diff": -80, "prop_pct": -7.0, "p2026_counter": 1110, "p2026_final": 1110}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "035C", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1110, "prop_diff": -40, "prop_pct": -3.5, "p2026_counter": 1150, "p2026_final": 1150}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "035D", "driver": "", "p2024": 1150, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1150, "p2026_proposed": 1110, "prop_diff": -40, "prop_pct": -3.5, "p2026_counter": 1150, "p2026_final": 1150}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "036A", "driver": "", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1060, "prop_diff": -40, "prop_pct": -3.6, "p2026_counter": 1100, "p2026_final": 1100}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "036B", "driver": "", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1060, "prop_diff": -40, "prop_pct": -3.6, "p2026_counter": 1100, "p2026_final": 1100}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "036C", "driver": "", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1060, "prop_diff": -40, "prop_pct": -3.6, "p2026_counter": 1100, "p2026_final": 1100}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "037A", "driver": "", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1030, "prop_diff": -70, "prop_pct": -6.4, "p2026_counter": 1070, "p2026_final": 1070}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "037B", "driver": "", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1050, "prop_diff": -50, "prop_pct": -4.5, "p2026_counter": 1090, "p2026_final": 1090}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "037C", "driver": "", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1060, "prop_diff": -40, "prop_pct": -3.6, "p2026_counter": 1100, "p2026_final": 1100}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영2", "type": "W2", "route": "037D", "driver": "", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1030, "prop_diff": -70, "prop_pct": -6.4, "p2026_counter": 1070, "p2026_final": 1070}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영0", "type": "W2", "route": "036C", "driver": "", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1070, "prop_diff": -30, "prop_pct": -2.7, "p2026_counter": 1110, "p2026_final": 1110}, {"agency": "(주)넥스트 유니온", "camp": "통영", "camp_raw": "V_통영0", "type": "W2", "route": "036D", "driver": "", "p2024": 1100, "adj_amount": 0, "adj_pct": 0.0, "p2025": 1100, "p2026_proposed": 1050, "prop_diff": -50, "prop_pct": -4.5, "p2026_counter": 1090, "p2026_final": 1090}, {"agency": "바로물류", "camp": "김해", "camp_raw": "김해1", "type": "W2", "route": "115B", "driver": "이영은", "p2024": 810, "adj_amount": -110, "adj_pct": -13.6, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "바로물류", "camp": "김해", "camp_raw": "김해1", "type": "W2", "route": "115D", "driver": "이영은", "p2024": 810, "adj_amount": -50, "adj_pct": -6.2, "p2025": 760, "p2026_proposed": 710, "prop_diff": -50, "prop_pct": -6.6, "p2026_counter": 750, "p2026_final": 750}, {"agency": "바로물류", "camp": "김해", "camp_raw": "김해1", "type": "W2", "route": "308C", "driver": "이대원", "p2024": 730, "adj_amount": -30, "adj_pct": -4.1, "p2025": 700, "p2026_proposed": 660, "prop_diff": -40, "prop_pct": -5.7, "p2026_counter": 700, "p2026_final": 700}, {"agency": "바로물류", "camp": "김해", "camp_raw": "김해1", "type": "W2", "route": "308D", "driver": "이대원", "p2024": 730, "adj_amount": -30, "adj_pct": -4.1, "p2025": 700, "p2026_proposed": 640, "prop_diff": -60, "prop_pct": -8.6, "p2026_counter": 680, "p2026_final": 680}, {"agency": "바로물류", "camp": "김해", "camp_raw": "김해2", "type": "W2", "route": "913C", "driver": "오향진", "p2024": 750, "adj_amount": -30, "adj_pct": -4.0, "p2025": 720, "p2026_proposed": 680, "prop_diff": -40, "prop_pct": -5.6, "p2026_counter": 720, "p2026_final": 720}, {"agency": "바로물류", "camp": "김해", "camp_raw": "김해2", "type": "W2", "route": "914B", "driver": "문민준", "p2024": 860, "adj_amount": -20, "adj_pct": -2.3, "p2025": 840, "p2026_proposed": 800, "prop_diff": -40, "prop_pct": -4.8, "p2026_counter": 840, "p2026_final": 840}, {"agency": "바로물류", "camp": "김해", "camp_raw": "김해2", "type": "W2", "route": "914C", "driver": "문민준", "p2024": 880, "adj_amount": -10, "adj_pct": -1.1, "p2025": 870, "p2026_proposed": 820, "prop_diff": -50, "prop_pct": -5.7, "p2026_counter": 860, "p2026_final": 860}];
+
+const CAMP_ORDER = ["부산2주간", "부산2야간", "부산3주간", "부산3야간", "거제", "사천", "통영", "김해"];
+let selectedCamps = new Set(CAMP_ORDER); // 중복선택: 초기에 전부 선택
+let counterOffset = 40;
+
+// State
+const counterPrices = {};
+const finalPrices = {};
+
+DATA.forEach(d => {
+  const key = d.camp_raw + '_' + d.type + '_' + d.route;
+  counterPrices[key] = d.p2026_counter;
+  finalPrices[key] = d.p2026_final;
+});
+
+function fmt(n) {
+  if (n == null) return '-';
+  return Number(n).toLocaleString();
+}
+function fmtSign(n) {
+  if (n == null) return '-';
+  return (n > 0 ? '+' : '') + Number(n).toLocaleString();
+}
+function fmtPct(n) {
+  if (n == null) return '-';
+  return (n > 0 ? '+' : '') + n.toFixed(1) + '%';
+}
+function routeKey(d) {
+  return d.camp_raw + '_' + d.type + '_' + d.route;
+}
+
+function getFiltered() {
+  return DATA.filter(d => selectedCamps.has(d.camp));
+}
+
+function renderSummary() {
+  const filtered = getFiltered();
+  const total = filtered.length;
+  const selLabel = selectedCamps.size === CAMP_ORDER.length ? '전체' : [...selectedCamps].join(', ');
+
+  const adjPcts = filtered.filter(d => d.adj_pct != null).map(d => d.adj_pct);
+  const avgAdj = adjPcts.length ? (adjPcts.reduce((a,b) => a+b, 0) / adjPcts.length).toFixed(1) : '-';
+
+  const propDiffs = filtered.filter(d => d.prop_diff != null).map(d => d.prop_diff);
+  const avgPropDiff = propDiffs.length ? Math.round(propDiffs.reduce((a,b) => a+b, 0) / propDiffs.length) : '-';
+
+  const counterDiffs = filtered.filter(d => d.p2025 != null).map(d => {
+    return counterPrices[routeKey(d)] - d.p2025;
+  });
+  const avgCounterDiff = counterDiffs.length ? Math.round(counterDiffs.reduce((a,b) => a+b, 0) / counterDiffs.length) : '-';
+
+  document.getElementById('summary').innerHTML = `
+    <div class="card"><div class="label">총 라우트</div><div class="value">${total}</div><div class="sub">${selLabel}</div></div>
+    <div class="card danger"><div class="label">24→25 평균 조정</div><div class="value">${avgAdj}%</div><div class="sub">본사 단가 인하</div></div>
+    <div class="card purple"><div class="label">25→26 제안 평균</div><div class="value">${typeof avgPropDiff === 'number' ? (avgPropDiff > 0 ? '+' : '') + avgPropDiff + '원' : '-'}</div><div class="sub">본사 제안 변동</div></div>
+    <div class="card primary"><div class="label">협상단가 vs 2025</div><div class="value">${typeof avgCounterDiff === 'number' ? (avgCounterDiff > 0 ? '+' : '') + avgCounterDiff + '원' : '-'}</div><div class="sub">우리측 요구</div></div>
+  `;
+}
+
+function renderTabs() {
+  const allSelected = selectedCamps.size === CAMP_ORDER.length;
+  let html = `<button class="tab ${allSelected ? 'active' : ''}" onclick="toggleAll()">전체</button>`;
+  CAMP_ORDER.forEach(c => {
+    html += `<button class="tab ${selectedCamps.has(c) ? 'active' : ''}" onclick="toggleCamp('${c}')">${c}</button>`;
+  });
+  document.getElementById('tabs').innerHTML = html;
+}
+
+function toggleCamp(camp) {
+  if (selectedCamps.has(camp)) {
+    selectedCamps.delete(camp);
+    if (selectedCamps.size === 0) selectedCamps = new Set(CAMP_ORDER);
+  } else {
+    selectedCamps.add(camp);
+  }
+  renderTabs();
+  renderSummary();
+  renderTable();
+}
+
+function toggleAll() {
+  selectedCamps = new Set(CAMP_ORDER);
+  renderTabs();
+  renderSummary();
+  renderTable();
+}
+
+function campId(camp) {
+  return camp.replace(/[^a-zA-Z0-9\uAC00-\uD7AF]/g, '_');
+}
+
+function buildSubtotalRows(label, cid, items, isGrand) {
+  const n = items.length;
+  const cls = isGrand ? 'grand-total-row' : 'subtotal-row';
+  const s2024 = items.reduce((s,d) => s + (d.p2024 || 0), 0);
+  const s2025 = items.reduce((s,d) => s + (d.p2025 || 0), 0);
+  const sP = items.reduce((s,d) => s + (d.p2026_proposed || 0), 0);
+  const sC = items.reduce((s,d) => s + (counterPrices[routeKey(d)] || 0), 0);
+  const sF = items.reduce((s,d) => s + (finalPrices[routeKey(d)] || 0), 0);
+  const a2024 = Math.round(s2024 / n);
+  const a2025 = Math.round(s2025 / n);
+  const aP = Math.round(sP / n);
+  const aC = Math.round(sC / n);
+  const aF = Math.round(sF / n);
+  const adjA = items.filter(d => d.adj_amount != null).map(d => d.adj_amount);
+  const aAdj = adjA.length ? Math.round(adjA.reduce((a,b)=>a+b,0)/adjA.length) : null;
+  const adjP = items.filter(d => d.adj_pct != null).map(d => d.adj_pct);
+  const aAdjP = adjP.length ? (adjP.reduce((a,b)=>a+b,0)/adjP.length) : null;
+  const pdA = items.filter(d => d.prop_diff != null).map(d => d.prop_diff);
+  const aPD = pdA.length ? Math.round(pdA.reduce((a,b)=>a+b,0)/pdA.length) : null;
+  const cdA = items.filter(d => d.p2025 != null).map(d => counterPrices[routeKey(d)] - d.p2025);
+  const aCD = cdA.length ? Math.round(cdA.reduce((a,b)=>a+b,0)/cdA.length) : null;
+  const fdA = items.filter(d => d.p2025 != null).map(d => finalPrices[routeKey(d)] - d.p2025);
+  const aFD = fdA.length ? Math.round(fdA.reduce((a,b)=>a+b,0)/fdA.length) : null;
+  // 합계행용 diff 계산
+  const sAdj = s2025 - s2024;
+  const sAdjP = s2024 !== 0 ? ((s2025 - s2024) / s2024 * 100) : null;
+  const sPDsum = sP - s2025;
+  const sCDsum = sC - s2025;
+  const sFDsum = sF - s2025;
+
+  let h = '';
+  h += `<tr class="${cls} sum-row">
+    <td colspan="4" class="subtotal-label">${label} 합계 (${n}개)</td>
+    <td class="num" id="sub_${cid}_s24">${fmt(s2024)}</td>
+    <td class="num neg" id="sub_${cid}_sAdj">${fmtSign(sAdj)}</td>
+    <td class="num neg" id="sub_${cid}_sAdjP">${sAdjP != null ? fmtPct(sAdjP) : '-'}</td>
+    <td class="num" id="sub_${cid}_s25">${fmt(s2025)}</td>
+    <td class="num proposed" id="sub_${cid}_sP">${fmt(sP)}</td>
+    <td class="num neg" id="sub_${cid}_sPD">${fmtSign(sPDsum)}</td>
+    <td class="num" id="sub_${cid}_sC">${fmt(sC)}</td>
+    <td class="num" id="sub_${cid}_sCDiff" style="color:${sCDsum >= 0 ? '#00b894' : '#d63031'}">${fmtSign(sCDsum)}</td>
+    <td class="num" id="sub_${cid}_sF">${fmt(sF)}</td>
+    <td class="num" id="sub_${cid}_sFDiff" style="color:${sFDsum >= 0 ? '#00b894' : '#d63031'}">${fmtSign(sFDsum)}</td>
+  </tr>`;
+  h += `<tr class="${cls} avg-row">
+    <td colspan="4" class="subtotal-label">${label} 평균</td>
+    <td class="num" id="sub_${cid}_a24">${fmt(a2024)}</td>
+    <td class="num neg" id="sub_${cid}_aAdj">${aAdj != null ? fmtSign(aAdj) : '-'}</td>
+    <td class="num neg" id="sub_${cid}_aAdjP">${aAdjP != null ? fmtPct(aAdjP) : '-'}</td>
+    <td class="num" id="sub_${cid}_a25">${fmt(a2025)}</td>
+    <td class="num proposed" id="sub_${cid}_aP">${fmt(aP)}</td>
+    <td class="num neg" id="sub_${cid}_aPD">${aPD != null ? fmtSign(aPD) : '-'}</td>
+    <td class="num" id="sub_${cid}_aC">${fmt(aC)}</td>
+    <td class="num" id="sub_${cid}_aCD" style="color:${aCD != null && aCD >= 0 ? '#00b894' : '#d63031'}">${aCD != null ? fmtSign(aCD) : '-'}</td>
+    <td class="num" id="sub_${cid}_aF">${fmt(aF)}</td>
+    <td class="num" id="sub_${cid}_aFD" style="color:${aFD != null && aFD >= 0 ? '#00b894' : '#d63031'}">${aFD != null ? fmtSign(aFD) : '-'}</td>
+  </tr>`;
+  return h;
+}
+
+function renderTable() {
+  const filtered = getFiltered();
+  const multiCamp = selectedCamps.size > 1;
+
+  // 캠프별 그룹핑
+  const campGroups = [];
+  const campMap = {};
+  filtered.forEach(d => {
+    if (!campMap[d.camp]) { campMap[d.camp] = []; campGroups.push(d.camp); }
+    campMap[d.camp].push(d);
+  });
+
+  let rows = '';
+  campGroups.forEach(camp => {
+    const group = campMap[camp];
+    const cid = campId(camp);
+
+    // 캠프 헤더
+    if (multiCamp) {
+      rows += `<tr class="camp-header"><td colspan="14">${camp} (${group.length}개 라우트)</td></tr>`;
+    }
+
+    let idx = 0;
+    group.forEach(d => {
+      const k = routeKey(d);
+      const cp = counterPrices[k];
+      const fp = finalPrices[k];
+      idx++;
+
+      const counterDiff = d.p2025 != null ? cp - d.p2025 : null;
+      const finalDiff = d.p2025 != null ? fp - d.p2025 : null;
+
+      rows += `<tr>
+        <td>${idx}</td>
+        <td class="route">${d.route}</td>
+        <td>${d.type}</td>
+        <td class="driver">${d.driver || '-'}</td>
+        <td class="num">${fmt(d.p2024)}</td>
+        <td class="num neg">${fmtSign(d.adj_amount)}</td>
+        <td class="num neg">${fmtPct(d.adj_pct)}</td>
+        <td class="num">${fmt(d.p2025)}</td>
+        <td class="num proposed">${fmt(d.p2026_proposed)}</td>
+        <td class="num neg">${fmtSign(d.prop_diff)}</td>
+        <td>
+          <input type="number" class="price-input" value="${cp}" step="10"
+                 data-key="${k}" onchange="onCounterChange(this)"
+                 oninput="onCounterChange(this)">
+          <span class="stepper">
+            <button onclick="stepCounter('${k}', 10)">&#9650;</button>
+            <button onclick="stepCounter('${k}', -10)">&#9660;</button>
+          </span>
+        </td>
+        <td class="num" id="cd_${k}" style="color:${counterDiff != null && counterDiff >= 0 ? '#00b894' : '#d63031'}">${counterDiff != null ? (counterDiff >= 0 ? '+' : '') + counterDiff : '-'}</td>
+        <td>
+          <input type="number" class="price-input final" value="${fp}" step="10"
+                 data-key="${k}" onchange="onFinalChange(this)"
+                 oninput="onFinalChange(this)">
+        </td>
+        <td class="num" id="fd_${k}" style="color:${finalDiff != null && finalDiff >= 0 ? '#00b894' : '#d63031'}">${finalDiff != null ? (finalDiff >= 0 ? '+' : '') + finalDiff : '-'}</td>
+      </tr>`;
+    });
+
+    // 캠프별 소계 행
+    rows += buildSubtotalRows(camp, cid, group, false);
+  });
+
+  // 전체 합계 (2개 이상 캠프 선택 시)
+  if (multiCamp && filtered.length > 0) {
+    rows += buildSubtotalRows('전체', 'grand', filtered, true);
+  }
+
+  document.getElementById('tableWrap').innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>라우트</th>
+          <th>타입</th>
+          <th>담당기사</th>
+          <th>2024단가</th>
+          <th class="neg">조정금액</th>
+          <th class="neg">조정율</th>
+          <th>2025단가</th>
+          <th class="proposed">2026제안</th>
+          <th class="proposed">25→제안</th>
+          <th class="counter">협상단가</th>
+          <th class="counter">25→협상</th>
+          <th class="final">최종단가</th>
+          <th class="final">25→최종</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function updateSubtotalCells(cid, items) {
+  const n = items.length;
+  if (n === 0) return;
+  const sC = items.reduce((s,d) => s + (counterPrices[routeKey(d)] || 0), 0);
+  const sF = items.reduce((s,d) => s + (finalPrices[routeKey(d)] || 0), 0);
+  const s2025 = items.reduce((s,d) => s + (d.p2025 || 0), 0);
+  const aC = Math.round(sC / n);
+  const aF = Math.round(sF / n);
+  const sCDsum = sC - s2025;
+  const sFDsum = sF - s2025;
+  const cdA = items.filter(d => d.p2025 != null).map(d => counterPrices[routeKey(d)] - d.p2025);
+  const aCD = cdA.length ? Math.round(cdA.reduce((a,b)=>a+b,0)/cdA.length) : null;
+  const fdA = items.filter(d => d.p2025 != null).map(d => finalPrices[routeKey(d)] - d.p2025);
+  const aFD = fdA.length ? Math.round(fdA.reduce((a,b)=>a+b,0)/fdA.length) : null;
+
+  const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  const elC = (id, val, color) => { const e = document.getElementById(id); if (e) { e.textContent = val; e.style.color = color; } };
+
+  // 합계 행
+  el('sub_'+cid+'_sC', fmt(sC));
+  el('sub_'+cid+'_sF', fmt(sF));
+  elC('sub_'+cid+'_sCDiff', fmtSign(sCDsum), sCDsum >= 0 ? '#00b894' : '#d63031');
+  elC('sub_'+cid+'_sFDiff', fmtSign(sFDsum), sFDsum >= 0 ? '#00b894' : '#d63031');
+  // 평균 행
+  el('sub_'+cid+'_aC', fmt(aC));
+  el('sub_'+cid+'_aF', fmt(aF));
+  elC('sub_'+cid+'_aCD', aCD != null ? fmtSign(aCD) : '-', aCD != null && aCD >= 0 ? '#00b894' : '#d63031');
+  elC('sub_'+cid+'_aFD', aFD != null ? fmtSign(aFD) : '-', aFD != null && aFD >= 0 ? '#00b894' : '#d63031');
+}
+
+function updateSubtotals() {
+  const filtered = getFiltered();
+  const campMap = {};
+  const campGroups = [];
+  filtered.forEach(d => {
+    if (!campMap[d.camp]) { campMap[d.camp] = []; campGroups.push(d.camp); }
+    campMap[d.camp].push(d);
+  });
+  campGroups.forEach(camp => updateSubtotalCells(campId(camp), campMap[camp]));
+  if (selectedCamps.size > 1 && filtered.length > 0) {
+    updateSubtotalCells('grand', filtered);
+  }
+}
+
+function onCounterChange(input) {
+  const key = input.dataset.key;
+  const val = parseInt(input.value) || 0;
+  counterPrices[key] = val;
+  finalPrices[key] = val;
+  const finalInput = document.querySelector(`input.final[data-key="${key}"]`);
+  if (finalInput) finalInput.value = val;
+  updateDiffs(key);
+  renderSummary();
+  updateSubtotals();
+}
+
+function onFinalChange(input) {
+  const key = input.dataset.key;
+  const val = parseInt(input.value) || 0;
+  finalPrices[key] = val;
+  updateDiffs(key);
+  updateSubtotals();
+}
+
+function updateDiffs(key) {
+  const d = DATA.find(x => routeKey(x) === key);
+  if (!d || d.p2025 == null) return;
+
+  const cp = counterPrices[key];
+  const fp = finalPrices[key];
+  const cdEl = document.getElementById('cd_' + key);
+  const fdEl = document.getElementById('fd_' + key);
+
+  if (cdEl) {
+    const diff = cp - d.p2025;
+    cdEl.textContent = (diff >= 0 ? '+' : '') + diff;
+    cdEl.style.color = diff >= 0 ? '#00b894' : '#d63031';
+  }
+  if (fdEl) {
+    const diff = fp - d.p2025;
+    fdEl.textContent = (diff >= 0 ? '+' : '') + diff;
+    fdEl.style.color = diff >= 0 ? '#00b894' : '#d63031';
+  }
+}
+
+function stepCounter(key, delta) {
+  counterPrices[key] = (counterPrices[key] || 0) + delta;
+  finalPrices[key] = counterPrices[key];
+  const input = document.querySelector(`input.price-input:not(.final)[data-key="${key}"]`);
+  if (input) input.value = counterPrices[key];
+  const finalInput = document.querySelector(`input.final[data-key="${key}"]`);
+  if (finalInput) finalInput.value = counterPrices[key];
+  updateDiffs(key);
+  renderSummary();
+  updateSubtotals();
+}
+
+function applyPreset(offset) {
+  counterOffset = offset;
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.includes('+' + offset) || (offset === 0 && btn.textContent.includes('그대로')));
+  });
+
+  DATA.forEach(d => {
+    const key = routeKey(d);
+    counterPrices[key] = d.p2026_proposed + offset;
+    finalPrices[key] = counterPrices[key];
+  });
+
+  document.getElementById('presetInfo').textContent = offset === 0 ? '제안단가 그대로' : `제안단가 + ${offset}원`;
+  renderTable();
+  renderSummary();
+}
+
+function calcSubtotals(items) {
+  const n = items.length;
+  const s24 = items.reduce((s,d) => s + (d.p2024||0), 0);
+  const s25 = items.reduce((s,d) => s + (d.p2025||0), 0);
+  const sP = items.reduce((s,d) => s + (d.p2026_proposed||0), 0);
+  const sC = items.reduce((s,d) => s + (counterPrices[routeKey(d)]||0), 0);
+  const sF = items.reduce((s,d) => s + (finalPrices[routeKey(d)]||0), 0);
+  const sAdj = s25 - s24;
+  const sAdjP = s24 ? Math.round((s25-s24)/s24*1000)/10 : null;
+  const sPD = sP - s25;
+  const sCD = sC - s25;
+  const sFD = sF - s25;
+  const a24 = Math.round(s24/n);
+  const a25 = Math.round(s25/n);
+  const aP = Math.round(sP/n);
+  const aC = Math.round(sC/n);
+  const aF = Math.round(sF/n);
+  const adjArr = items.filter(d=>d.adj_amount!=null).map(d=>d.adj_amount);
+  const aAdj = adjArr.length ? Math.round(adjArr.reduce((a,b)=>a+b,0)/adjArr.length) : null;
+  const adjPArr = items.filter(d=>d.adj_pct!=null).map(d=>d.adj_pct);
+  const aAdjP = adjPArr.length ? Math.round(adjPArr.reduce((a,b)=>a+b,0)/adjPArr.length*10)/10 : null;
+  const pdArr = items.filter(d=>d.prop_diff!=null).map(d=>d.prop_diff);
+  const aPD = pdArr.length ? Math.round(pdArr.reduce((a,b)=>a+b,0)/pdArr.length) : null;
+  const cdArr = items.filter(d=>d.p2025!=null).map(d=>counterPrices[routeKey(d)]-d.p2025);
+  const aCD = cdArr.length ? Math.round(cdArr.reduce((a,b)=>a+b,0)/cdArr.length) : null;
+  const fdArr = items.filter(d=>d.p2025!=null).map(d=>finalPrices[routeKey(d)]-d.p2025);
+  const aFD = fdArr.length ? Math.round(fdArr.reduce((a,b)=>a+b,0)/fdArr.length) : null;
+  return {n, s24, s25, sP, sC, sF, sAdj, sAdjP, sPD, sCD, sFD, a24, a25, aP, aC, aF, aAdj, aAdjP, aPD, aCD, aFD};
+}
+
+function downloadExcel() {
+  const filtered = getFiltered();
+  const multiCamp = selectedCamps.size > 1;
+  const campGroups = [];
+  const campMap = {};
+  filtered.forEach(d => {
+    if (!campMap[d.camp]) { campMap[d.camp] = []; campGroups.push(d.camp); }
+    campMap[d.camp].push(d);
+  });
+
+  const aoa = [];
+  aoa.push(["#", "캠프", "라우트", "타입", "담당기사", "2024단가", "조정금액", "조정율(%)", "2025단가", "2026제안", "25→제안", "협상단가", "25→협상", "최종단가", "25→최종"]);
+
+  campGroups.forEach(camp => {
+    const group = campMap[camp];
+    let idx = 0;
+    group.forEach(d => {
+      const k = routeKey(d);
+      const cp = counterPrices[k];
+      const fp = finalPrices[k];
+      idx++;
+      const cd = d.p2025 != null ? cp - d.p2025 : null;
+      const fd = d.p2025 != null ? fp - d.p2025 : null;
+      aoa.push([idx, d.camp, d.route, d.type, d.driver || "",
+        d.p2024, d.adj_amount, d.adj_pct, d.p2025,
+        d.p2026_proposed, d.prop_diff, cp, cd, fp, fd]);
+    });
+
+    const t = calcSubtotals(group);
+    aoa.push(["", camp+" 합계", "", "", t.n+"개", t.s24, t.sAdj, t.sAdjP, t.s25, t.sP, t.sPD, t.sC, t.sCD, t.sF, t.sFD]);
+    aoa.push(["", camp+" 평균", "", "", "", t.a24, t.aAdj, t.aAdjP, t.a25, t.aP, t.aPD, t.aC, t.aCD, t.aF, t.aFD]);
+    aoa.push([]);
+  });
+
+  if (filtered.length > 0) {
+    const t = calcSubtotals(filtered);
+    aoa.push(["", "전체 합계", "", "", t.n+"개", t.s24, t.sAdj, t.sAdjP, t.s25, t.sP, t.sPD, t.sC, t.sCD, t.sF, t.sFD]);
+    aoa.push(["", "전체 평균", "", "", "", t.a24, t.aAdj, t.aAdjP, t.a25, t.aP, t.aPD, t.aC, t.aCD, t.aF, t.aFD]);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [
+    {wch:4}, {wch:12}, {wch:8}, {wch:5}, {wch:8},
+    {wch:10}, {wch:10}, {wch:10}, {wch:10}, {wch:10},
+    {wch:9}, {wch:10}, {wch:9}, {wch:10}, {wch:9}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "단가협상");
+  const sel = selectedCamps.size === CAMP_ORDER.length ? "전체" : [...selectedCamps].join("_");
+  XLSX.writeFile(wb, `2026_단가협상_${sel}.xlsx`);
+}
+
+// Initial render
+renderTabs();
+renderSummary();
+renderTable();
+</script>
+</body>
+</html>
