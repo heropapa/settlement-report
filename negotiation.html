@@ -647,19 +647,45 @@ function downloadExcel() {
   XLSX.writeFile(wb, `2026_단가협상_${sel}.xlsx`);
 }
 
-async function downloadImage() {
+function prepareCapture() {
   const wrap = document.getElementById('tableWrap');
   const body = document.body;
-  const ow = wrap.style.cssText;
-  const ob = body.style.cssText;
+  const st = { ww: wrap.style.cssText, bw: body.style.cssText, items: [] };
   wrap.style.overflow = 'visible';
   wrap.style.flex = 'none';
   body.style.overflow = 'visible';
   body.style.height = 'auto';
   const table = wrap.querySelector('table');
+  table.querySelectorAll('input.price-input').forEach(inp => {
+    const span = document.createElement('span');
+    span.textContent = Number(inp.value).toLocaleString();
+    span.style.fontFamily = "'Consolas', monospace";
+    span.style.fontSize = '13px';
+    span.style.fontWeight = '600';
+    const stepper = inp.parentNode.querySelector('.stepper');
+    if (stepper) stepper.style.display = 'none';
+    inp.style.display = 'none';
+    inp.parentNode.insertBefore(span, inp);
+    st.items.push({ inp, span, stepper });
+  });
+  return st;
+}
+
+function restoreCapture(st) {
+  document.getElementById('tableWrap').style.cssText = st.ww;
+  document.body.style.cssText = st.bw;
+  st.items.forEach(item => {
+    item.span.remove();
+    item.inp.style.display = '';
+    if (item.stepper) item.stepper.style.display = '';
+  });
+}
+
+async function downloadImage() {
+  const st = prepareCapture();
+  const table = document.querySelector('#tableWrap table');
   const canvas = await html2canvas(table, { scale: 2, useCORS: true });
-  wrap.style.cssText = ow;
-  body.style.cssText = ob;
+  restoreCapture(st);
   const link = document.createElement('a');
   const sel = selectedCamps.size === CAMP_ORDER.length ? '전체' : [...selectedCamps].join('_');
   link.download = `2026_단가협상_${sel}.png`;
@@ -668,18 +694,10 @@ async function downloadImage() {
 }
 
 async function downloadPDF() {
-  const wrap = document.getElementById('tableWrap');
-  const body = document.body;
-  const ow = wrap.style.cssText;
-  const ob = body.style.cssText;
-  wrap.style.overflow = 'visible';
-  wrap.style.flex = 'none';
-  body.style.overflow = 'visible';
-  body.style.height = 'auto';
-  const table = wrap.querySelector('table');
+  const st = prepareCapture();
+  const table = document.querySelector('#tableWrap table');
   const canvas = await html2canvas(table, { scale: 2, useCORS: true });
-  wrap.style.cssText = ow;
-  body.style.cssText = ob;
+  restoreCapture(st);
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF('l', 'mm', 'a4');
   const pw = pdf.internal.pageSize.getWidth() - 20;
