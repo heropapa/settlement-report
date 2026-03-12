@@ -152,6 +152,7 @@ tr.grand-total-row .num { color: white; }
 tr.grand-total-row .proposed { color: #a29bfe; }
 tr.grand-total-row .neg { color: #fab1a0; }
 tr.grand-total-row:hover td { background: #2d3436; }
+table.hide-counter .counter-col { display: none; }
 
 /* Footer */
 .footer {
@@ -160,6 +161,8 @@ tr.grand-total-row:hover td { background: #2d3436; }
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -185,6 +188,8 @@ tr.grand-total-row:hover td { background: #2d3436; }
   <button class="preset-btn" onclick="applyPreset(100)">+100원</button>
   <span style="margin-left:auto;font-size:12px;color:#636e72" id="presetInfo"></span>
   <button class="preset-btn" onclick="downloadExcel()" style="background:#0984e3;color:white;border-color:#0984e3;font-weight:600;">엑셀 다운로드</button>
+  <button class="preset-btn" onclick="downloadImage()" style="background:#00b894;color:white;border-color:#00b894;font-weight:600;">이미지 저장</button>
+  <button class="preset-btn" onclick="downloadPDF()" style="background:#6c5ce7;color:white;border-color:#6c5ce7;font-weight:600;">PDF 저장</button>
   <button class="preset-btn final-btn" onclick="applyFinalNegotiated()" style="background:#e17055;color:white;border-color:#e17055;font-weight:600;">최종협상단가 보기</button>
 </div>
 
@@ -199,6 +204,7 @@ const FINAL_NEGOTIATED = {"부산3야간_410C": {"counter": 900, "final": 900}, 
 const CAMP_ORDER = ["부산2주간", "부산2야간", "부산3주간", "부산3야간", "거제", "사천", "통영", "김해"];
 let selectedCamps = new Set(CAMP_ORDER); // 중복선택: 초기에 전부 선택
 let counterOffset = 40;
+let isFinalMode = false;
 
 // State
 const counterPrices = {};
@@ -239,12 +245,12 @@ function renderSummary() {
   const avgAdj = adjPcts.length ? (adjPcts.reduce((a,b) => a+b, 0) / adjPcts.length).toFixed(1) : '-';
 
   const propDiffs = filtered.filter(d => d.prop_diff != null).map(d => d.prop_diff);
-  const avgPropDiff = propDiffs.length ? Math.round(propDiffs.reduce((a,b) => a+b, 0) / propDiffs.length) : '-';
+  const avgPropDiff = propDiffs.length ? Math.trunc(propDiffs.reduce((a,b) => a+b, 0) / propDiffs.length) : '-';
 
   const counterDiffs = filtered.filter(d => d.p2025 != null).map(d => {
     return counterPrices[routeKey(d)] - d.p2025;
   });
-  const avgCounterDiff = counterDiffs.length ? Math.round(counterDiffs.reduce((a,b) => a+b, 0) / counterDiffs.length) : '-';
+  const avgCounterDiff = counterDiffs.length ? Math.trunc(counterDiffs.reduce((a,b) => a+b, 0) / counterDiffs.length) : '-';
 
   document.getElementById('summary').innerHTML = `
     <div class="card"><div class="label">총 라우트</div><div class="value">${total}</div><div class="sub">${selLabel}</div></div>
@@ -294,21 +300,21 @@ function buildSubtotalRows(label, cid, items, isGrand) {
   const sP = items.reduce((s,d) => s + (d.p2026_proposed || 0), 0);
   const sC = items.reduce((s,d) => s + (counterPrices[routeKey(d)] || 0), 0);
   const sF = items.reduce((s,d) => s + (finalPrices[routeKey(d)] || 0), 0);
-  const a2024 = Math.round(s2024 / n);
-  const a2025 = Math.round(s2025 / n);
-  const aP = Math.round(sP / n);
-  const aC = Math.round(sC / n);
-  const aF = Math.round(sF / n);
+  const a2024 = Math.trunc(s2024 / n);
+  const a2025 = Math.trunc(s2025 / n);
+  const aP = Math.trunc(sP / n);
+  const aC = Math.trunc(sC / n);
+  const aF = Math.trunc(sF / n);
   const adjA = items.filter(d => d.adj_amount != null).map(d => d.adj_amount);
-  const aAdj = adjA.length ? Math.round(adjA.reduce((a,b)=>a+b,0)/adjA.length) : null;
+  const aAdj = adjA.length ? Math.trunc(adjA.reduce((a,b)=>a+b,0)/adjA.length) : null;
   const adjP = items.filter(d => d.adj_pct != null).map(d => d.adj_pct);
   const aAdjP = adjP.length ? (adjP.reduce((a,b)=>a+b,0)/adjP.length) : null;
   const pdA = items.filter(d => d.prop_diff != null).map(d => d.prop_diff);
-  const aPD = pdA.length ? Math.round(pdA.reduce((a,b)=>a+b,0)/pdA.length) : null;
+  const aPD = pdA.length ? Math.trunc(pdA.reduce((a,b)=>a+b,0)/pdA.length) : null;
   const cdA = items.filter(d => d.p2025 != null).map(d => counterPrices[routeKey(d)] - d.p2025);
-  const aCD = cdA.length ? Math.round(cdA.reduce((a,b)=>a+b,0)/cdA.length) : null;
+  const aCD = cdA.length ? Math.trunc(cdA.reduce((a,b)=>a+b,0)/cdA.length) : null;
   const fdA = items.filter(d => d.p2025 != null).map(d => finalPrices[routeKey(d)] - d.p2025);
-  const aFD = fdA.length ? Math.round(fdA.reduce((a,b)=>a+b,0)/fdA.length) : null;
+  const aFD = fdA.length ? Math.trunc(fdA.reduce((a,b)=>a+b,0)/fdA.length) : null;
   // 합계행용 diff 계산
   const sAdj = s2025 - s2024;
   const sAdjP = s2024 !== 0 ? ((s2025 - s2024) / s2024 * 100) : null;
@@ -325,8 +331,8 @@ function buildSubtotalRows(label, cid, items, isGrand) {
     <td class="num" id="sub_${cid}_s25">${fmt(s2025)}</td>
     <td class="num proposed" id="sub_${cid}_sP">${fmt(sP)}</td>
     <td class="num neg" id="sub_${cid}_sPD">${fmtSign(sPDsum)}</td>
-    <td class="num" id="sub_${cid}_sC">${fmt(sC)}</td>
-    <td class="num" id="sub_${cid}_sCDiff" style="color:${sCDsum >= 0 ? '#00b894' : '#d63031'}">${fmtSign(sCDsum)}</td>
+    <td class="num counter-col" id="sub_${cid}_sC">${fmt(sC)}</td>
+    <td class="num counter-col" id="sub_${cid}_sCDiff" style="color:${sCDsum >= 0 ? '#00b894' : '#d63031'}">${fmtSign(sCDsum)}</td>
     <td class="num" id="sub_${cid}_sF">${fmt(sF)}</td>
     <td class="num" id="sub_${cid}_sFDiff" style="color:${sFDsum >= 0 ? '#00b894' : '#d63031'}">${fmtSign(sFDsum)}</td>
   </tr>`;
@@ -338,8 +344,8 @@ function buildSubtotalRows(label, cid, items, isGrand) {
     <td class="num" id="sub_${cid}_a25">${fmt(a2025)}</td>
     <td class="num proposed" id="sub_${cid}_aP">${fmt(aP)}</td>
     <td class="num neg" id="sub_${cid}_aPD">${aPD != null ? fmtSign(aPD) : '-'}</td>
-    <td class="num" id="sub_${cid}_aC">${fmt(aC)}</td>
-    <td class="num" id="sub_${cid}_aCD" style="color:${aCD != null && aCD >= 0 ? '#00b894' : '#d63031'}">${aCD != null ? fmtSign(aCD) : '-'}</td>
+    <td class="num counter-col" id="sub_${cid}_aC">${fmt(aC)}</td>
+    <td class="num counter-col" id="sub_${cid}_aCD" style="color:${aCD != null && aCD >= 0 ? '#00b894' : '#d63031'}">${aCD != null ? fmtSign(aCD) : '-'}</td>
     <td class="num" id="sub_${cid}_aF">${fmt(aF)}</td>
     <td class="num" id="sub_${cid}_aFD" style="color:${aFD != null && aFD >= 0 ? '#00b894' : '#d63031'}">${aFD != null ? fmtSign(aFD) : '-'}</td>
   </tr>`;
@@ -389,7 +395,7 @@ function renderTable() {
         <td class="num">${fmt(d.p2025)}</td>
         <td class="num proposed">${fmt(d.p2026_proposed)}</td>
         <td class="num neg">${fmtSign(d.prop_diff)}</td>
-        <td>
+        <td class="counter-col">
           <input type="number" class="price-input" value="${cp}" step="10"
                  data-key="${k}" onchange="onCounterChange(this)"
                  oninput="onCounterChange(this)">
@@ -398,7 +404,7 @@ function renderTable() {
             <button onclick="stepCounter('${k}', -10)">&#9660;</button>
           </span>
         </td>
-        <td class="num" id="cd_${k}" style="color:${counterDiff != null && counterDiff >= 0 ? '#00b894' : '#d63031'}">${counterDiff != null ? (counterDiff >= 0 ? '+' : '') + counterDiff : '-'}</td>
+        <td class="num counter-col" id="cd_${k}" style="color:${counterDiff != null && counterDiff >= 0 ? '#00b894' : '#d63031'}">${counterDiff != null ? (counterDiff >= 0 ? '+' : '') + counterDiff : '-'}</td>
         <td>
           <input type="number" class="price-input final" value="${fp}" step="10"
                  data-key="${k}" onchange="onFinalChange(this)"
@@ -431,8 +437,8 @@ function renderTable() {
           <th>2025단가</th>
           <th class="proposed">2026제안</th>
           <th class="proposed">25→제안</th>
-          <th class="counter">협상단가</th>
-          <th class="counter">25→협상</th>
+          <th class="counter counter-col">협상단가</th>
+          <th class="counter counter-col">25→협상</th>
           <th class="final">최종단가</th>
           <th class="final">25→최종</th>
         </tr>
@@ -440,6 +446,7 @@ function renderTable() {
       <tbody>${rows}</tbody>
     </table>
   `;
+  if (isFinalMode) { const tbl = document.querySelector('table'); if (tbl) tbl.classList.add('hide-counter'); }
 }
 
 function updateSubtotalCells(cid, items) {
@@ -448,14 +455,14 @@ function updateSubtotalCells(cid, items) {
   const sC = items.reduce((s,d) => s + (counterPrices[routeKey(d)] || 0), 0);
   const sF = items.reduce((s,d) => s + (finalPrices[routeKey(d)] || 0), 0);
   const s2025 = items.reduce((s,d) => s + (d.p2025 || 0), 0);
-  const aC = Math.round(sC / n);
-  const aF = Math.round(sF / n);
+  const aC = Math.trunc(sC / n);
+  const aF = Math.trunc(sF / n);
   const sCDsum = sC - s2025;
   const sFDsum = sF - s2025;
   const cdA = items.filter(d => d.p2025 != null).map(d => counterPrices[routeKey(d)] - d.p2025);
-  const aCD = cdA.length ? Math.round(cdA.reduce((a,b)=>a+b,0)/cdA.length) : null;
+  const aCD = cdA.length ? Math.trunc(cdA.reduce((a,b)=>a+b,0)/cdA.length) : null;
   const fdA = items.filter(d => d.p2025 != null).map(d => finalPrices[routeKey(d)] - d.p2025);
-  const aFD = fdA.length ? Math.round(fdA.reduce((a,b)=>a+b,0)/fdA.length) : null;
+  const aFD = fdA.length ? Math.trunc(fdA.reduce((a,b)=>a+b,0)/fdA.length) : null;
 
   const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
   const elC = (id, val, color) => { const e = document.getElementById(id); if (e) { e.textContent = val; e.style.color = color; } };
@@ -540,6 +547,7 @@ function stepCounter(key, delta) {
 }
 
 function applyPreset(offset) {
+  isFinalMode = false;
   counterOffset = offset;
   document.querySelectorAll('.preset-btn').forEach(btn => {
     if (btn.classList.contains('final-btn')) { btn.classList.remove('active'); return; }
@@ -565,25 +573,25 @@ function calcSubtotals(items) {
   const sC = items.reduce((s,d) => s + (counterPrices[routeKey(d)]||0), 0);
   const sF = items.reduce((s,d) => s + (finalPrices[routeKey(d)]||0), 0);
   const sAdj = s25 - s24;
-  const sAdjP = s24 ? Math.round((s25-s24)/s24*1000)/10 : null;
+  const sAdjP = s24 ? Math.trunc((s25-s24)/s24*1000)/10 : null;
   const sPD = sP - s25;
   const sCD = sC - s25;
   const sFD = sF - s25;
-  const a24 = Math.round(s24/n);
-  const a25 = Math.round(s25/n);
-  const aP = Math.round(sP/n);
-  const aC = Math.round(sC/n);
-  const aF = Math.round(sF/n);
+  const a24 = Math.trunc(s24/n);
+  const a25 = Math.trunc(s25/n);
+  const aP = Math.trunc(sP/n);
+  const aC = Math.trunc(sC/n);
+  const aF = Math.trunc(sF/n);
   const adjArr = items.filter(d=>d.adj_amount!=null).map(d=>d.adj_amount);
-  const aAdj = adjArr.length ? Math.round(adjArr.reduce((a,b)=>a+b,0)/adjArr.length) : null;
+  const aAdj = adjArr.length ? Math.trunc(adjArr.reduce((a,b)=>a+b,0)/adjArr.length) : null;
   const adjPArr = items.filter(d=>d.adj_pct!=null).map(d=>d.adj_pct);
-  const aAdjP = adjPArr.length ? Math.round(adjPArr.reduce((a,b)=>a+b,0)/adjPArr.length*10)/10 : null;
+  const aAdjP = adjPArr.length ? Math.trunc(adjPArr.reduce((a,b)=>a+b,0)/adjPArr.length*10)/10 : null;
   const pdArr = items.filter(d=>d.prop_diff!=null).map(d=>d.prop_diff);
-  const aPD = pdArr.length ? Math.round(pdArr.reduce((a,b)=>a+b,0)/pdArr.length) : null;
+  const aPD = pdArr.length ? Math.trunc(pdArr.reduce((a,b)=>a+b,0)/pdArr.length) : null;
   const cdArr = items.filter(d=>d.p2025!=null).map(d=>counterPrices[routeKey(d)]-d.p2025);
-  const aCD = cdArr.length ? Math.round(cdArr.reduce((a,b)=>a+b,0)/cdArr.length) : null;
+  const aCD = cdArr.length ? Math.trunc(cdArr.reduce((a,b)=>a+b,0)/cdArr.length) : null;
   const fdArr = items.filter(d=>d.p2025!=null).map(d=>finalPrices[routeKey(d)]-d.p2025);
-  const aFD = fdArr.length ? Math.round(fdArr.reduce((a,b)=>a+b,0)/fdArr.length) : null;
+  const aFD = fdArr.length ? Math.trunc(fdArr.reduce((a,b)=>a+b,0)/fdArr.length) : null;
   return {n, s24, s25, sP, sC, sF, sAdj, sAdjP, sPD, sCD, sFD, a24, a25, aP, aC, aF, aAdj, aAdjP, aPD, aCD, aFD};
 }
 
@@ -639,6 +647,60 @@ function downloadExcel() {
   XLSX.writeFile(wb, `2026_단가협상_${sel}.xlsx`);
 }
 
+async function downloadImage() {
+  const wrap = document.getElementById('tableWrap');
+  const body = document.body;
+  const ow = wrap.style.cssText;
+  const ob = body.style.cssText;
+  wrap.style.overflow = 'visible';
+  wrap.style.flex = 'none';
+  body.style.overflow = 'visible';
+  body.style.height = 'auto';
+  const table = wrap.querySelector('table');
+  const canvas = await html2canvas(table, { scale: 2, useCORS: true });
+  wrap.style.cssText = ow;
+  body.style.cssText = ob;
+  const link = document.createElement('a');
+  const sel = selectedCamps.size === CAMP_ORDER.length ? '전체' : [...selectedCamps].join('_');
+  link.download = `2026_단가협상_${sel}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+async function downloadPDF() {
+  const wrap = document.getElementById('tableWrap');
+  const body = document.body;
+  const ow = wrap.style.cssText;
+  const ob = body.style.cssText;
+  wrap.style.overflow = 'visible';
+  wrap.style.flex = 'none';
+  body.style.overflow = 'visible';
+  body.style.height = 'auto';
+  const table = wrap.querySelector('table');
+  const canvas = await html2canvas(table, { scale: 2, useCORS: true });
+  wrap.style.cssText = ow;
+  body.style.cssText = ob;
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('l', 'mm', 'a4');
+  const pw = pdf.internal.pageSize.getWidth() - 20;
+  const ph = pdf.internal.pageSize.getHeight() - 20;
+  const ratio = pw / canvas.width;
+  const imgH = canvas.height * ratio;
+  const pages = Math.ceil(imgH / ph);
+  for (let i = 0; i < pages; i++) {
+    if (i > 0) pdf.addPage();
+    const sy = i * (ph / ratio);
+    const sh = Math.min(ph / ratio, canvas.height - sy);
+    const pc = document.createElement('canvas');
+    pc.width = canvas.width;
+    pc.height = sh;
+    pc.getContext('2d').drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
+    pdf.addImage(pc.toDataURL('image/png'), 'PNG', 10, 10, pw, sh * ratio);
+  }
+  const sel = selectedCamps.size === CAMP_ORDER.length ? '전체' : [...selectedCamps].join('_');
+  pdf.save(`2026_단가협상_${sel}.pdf`);
+}
+
 function applyFinalNegotiated() {
   DATA.forEach(d => {
     const nk = d.camp + '_' + d.route;
@@ -651,6 +713,7 @@ function applyFinalNegotiated() {
   document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
   const fb = document.querySelector('.preset-btn.final-btn');
   if (fb) fb.classList.add('active');
+  isFinalMode = true;
   document.getElementById('presetInfo').textContent = '최종 협상 결과 적용';
   renderTable();
   renderSummary();
