@@ -57,12 +57,12 @@
     position: relative;
   }
   .scale-wrapper {
-    width: 800px;
+    width: 650px;
     transform-origin: top left;
     /* scale is set dynamically by JS */
   }
   iframe {
-    width: 800px;
+    width: 650px;
     height: 2400px;
     border: none;
     display: block;
@@ -101,7 +101,7 @@
       var frame = document.getElementById('sheetFrame');
       var wrapper = document.getElementById('scaleWrapper');
       var containerWidth = frame.clientWidth;
-      var iframeWidth = 800;
+      var iframeWidth = 650;
       var scale = containerWidth / iframeWidth;
       wrapper.style.transform = 'scale(' + scale + ')';
       frame.style.height = (2400 * scale) + 'px';
