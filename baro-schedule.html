@@ -31,7 +31,7 @@
   .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px 16px 40px;
+    padding: 20px 0 40px;
   }
   .info-bar {
     display: flex;
@@ -57,12 +57,10 @@
     position: relative;
   }
   .scale-wrapper {
-    width: 500px;
-    transform-origin: top left;
-    /* scale is set dynamically by JS */
+    width: 100%;
   }
-  iframe {
-    width: 500px;
+  .scale-wrapper > * {
+    width: 100%;
     height: 2400px;
     border: none;
     display: block;
@@ -96,19 +94,6 @@
       </div>
     </div>
   </div>
-  <script>
-    function fitSheet() {
-      var frame = document.getElementById('sheetFrame');
-      var wrapper = document.getElementById('scaleWrapper');
-      var containerWidth = frame.clientWidth;
-      var iframeWidth = 500;
-      var scale = containerWidth / iframeWidth;
-      wrapper.style.transform = 'scale(' + scale + ')';
-      frame.style.height = (2400 * scale) + 'px';
-    }
-    fitSheet();
-    window.addEventListener('resize', fitSheet);
-  </script>
   <footer>
     &copy; 2026 바로물류
   </footer>
