@@ -6,10 +6,10 @@
 <title>2026년 바로물류 휴무일정표</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
+  body, html {
+    width: 100vw;
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: #f0f2f5;
-    min-height: 100vh;
   }
   header {
     background: linear-gradient(135deg, #1a73e8, #0d47a1);
@@ -29,8 +29,7 @@
     opacity: 0.85;
   }
   .container {
-    margin: 0 auto;
-    padding: 12px 8px 40px;
+    padding: 12px 8px 0;
   }
   .info-bar {
     display: flex;
@@ -48,22 +47,20 @@
     text-decoration: none;
     font-weight: 500;
   }
-  .info-bar a:hover { text-decoration: underline; }
-  .sheet-frame {
+  .iframe-container {
+    width: 100vw;
+    margin-left: -8px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 1px 6px rgba(0,0,0,.08);
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .scale-wrapper {
-    width: 1400px;
   }
   iframe {
-    width: 1400px;
-    height: 1500px;
     border: none;
     display: block;
+    transform-origin: top left;
   }
   footer {
     text-align: center;
@@ -85,25 +82,30 @@
         원본 스프레드시트 열기 &rarr;
       </a>
     </div>
-    <div class="sheet-frame" id="sheetFrame">
-      <div class="scale-wrapper" id="scaleWrapper">
-        <iframe
-          id="sheetIframe"
-          src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSYHTVN1CxUIGdYUeSxOo5QHzsh2qJ_6mHcJLyGDEtnrl2akrItl-FChTcU6d5erck0CkA51etVQTwl/pubhtml?widget=true&headers=false"
-        ></iframe>
-      </div>
+    <div class="iframe-container" id="iframeContainer">
+      <iframe
+        id="sheetIframe"
+        src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSYHTVN1CxUIGdYUeSxOo5QHzsh2qJ_6mHcJLyGDEtnrl2akrItl-FChTcU6d5erck0CkA51etVQTwl/pubhtml?widget=true&headers=false"
+      ></iframe>
     </div>
   </div>
   <script>
-    function fitSheet() {
-      var wrapper = document.getElementById('scaleWrapper');
-      var screenW = window.innerWidth;
-      var iframeW = 1400;
-      var zoomVal = (screenW / iframeW) * 1.26;
-      wrapper.style.zoom = zoomVal;
+    function adjustIframeScale() {
+      var iframe = document.getElementById('sheetIframe');
+      var screenWidth = window.innerWidth;
+      var spreadsheetWidth = 1400;
+      var scale = screenWidth / spreadsheetWidth;
+
+      iframe.style.transform = 'scale(' + scale + ')';
+      iframe.style.width = (100 / scale) + '%';
+      iframe.style.height = (100 / scale) + '%';
+
+      var container = document.getElementById('iframeContainer');
+      container.style.height = (1500 * scale) + 'px';
     }
-    fitSheet();
-    window.addEventListener('resize', fitSheet);
+    window.addEventListener('load', adjustIframeScale);
+    window.addEventListener('resize', adjustIframeScale);
+    adjustIframeScale();
   </script>
   <footer>
     &copy; 2026 바로물류
