@@ -30,7 +30,7 @@
   }
   .container {
     margin: 0 auto;
-    padding: 12px 0 40px;
+    padding: 12px 8px 40px;
   }
   .info-bar {
     display: flex;
@@ -51,15 +51,17 @@
   .info-bar a:hover { text-decoration: underline; }
   .sheet-frame {
     background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.08);
     overflow: hidden;
     position: relative;
   }
   .scale-wrapper {
-    width: 1200px;
+    width: 2000px;
     transform-origin: top left;
   }
   iframe {
-    width: 1200px;
+    width: 2000px;
     height: 5000px;
     border: none;
     display: block;
@@ -98,7 +100,7 @@
       var frame = document.getElementById('sheetFrame');
       var wrapper = document.getElementById('scaleWrapper');
       var containerWidth = frame.clientWidth;
-      var iframeWidth = 1200;
+      var iframeWidth = 2000;
       var scale = containerWidth / iframeWidth;
       wrapper.style.transform = 'scale(' + scale + ')';
       frame.style.height = (5000 * scale) + 'px';
