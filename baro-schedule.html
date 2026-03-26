@@ -104,6 +104,9 @@
       var iframeWidth = 1400;
       var scale = (containerWidth / iframeWidth) * 1.26;
       wrapper.style.transform = 'scale(' + scale + ')';
+      var scaledWidth = iframeWidth * scale;
+      wrapper.style.width = iframeWidth + 'px';
+      frame.style.width = scaledWidth + 'px';
       frame.style.height = (1500 * scale) + 'px';
     }
     fitSheet();
